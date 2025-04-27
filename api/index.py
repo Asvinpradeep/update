@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.auth.transport.requests import Request
+import google.auth
 
 app = Flask(__name__)
 
-# Firebase credentials as a dictionary (replace with your actual credentials)
-firebase_credentials = {
+# Firebase credentials (this should be stored securely, not directly in the code)
+service_account_info = {
   "type": "service_account",
   "project_id": "lumethrv",
   "private_key_id": "4da8484822f4aab75eb8df8aa36eeed620423773",
@@ -19,10 +21,17 @@ firebase_credentials = {
   "universe_domain": "googleapis.com"
 }
 
+# Function to authenticate using JWT token
+def authenticate_via_jwt():
+    credentials, project = google.auth.load_credentials_from_info(service_account_info)
+    credentials.refresh(Request())  # Refresh the credentials
+    return credentials
 
-# Initialize Firebase Admin with direct credentials
-cred = credentials.Certificate(firebase_credentials)
-firebase_admin.initialize_app(cred)
+# Authenticate Firebase Admin SDK using JWT credentials
+credentials = authenticate_via_jwt()
+firebase_admin.initialize_app(credentials)
+
+# Initialize Firestore client
 db = firestore.client()
 
 @app.route('/update_documents', methods=['POST'])
