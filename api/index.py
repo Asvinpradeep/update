@@ -21,9 +21,10 @@ service_account_info = {
   "universe_domain": "googleapis.com"
 }
 
+
 # Function to authenticate using JWT token
 def authenticate_via_jwt():
-    credentials, project = google.auth.load_credentials_from_info(service_account_info)
+    credentials, project = google.auth.load_credentials_from_dict(service_account_info)
     credentials.refresh(Request())  # Refresh the credentials
     return credentials
 
