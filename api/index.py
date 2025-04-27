@@ -2,7 +2,10 @@ from flask import Flask, request, jsonify
 from google.cloud import firestore
 from google.oauth2 import service_account
 
-# Paste your service account JSON here (or load from a secure location)
+# Initialize Flask app
+app = Flask(__name__)
+
+# Service Account JSON for Firestore
 service_account_info = {
   "type": "service_account",
   "project_id": "lumethrv",
@@ -21,41 +24,83 @@ service_account_info = {
 creds = service_account.Credentials.from_service_account_info(service_account_info)
 db = firestore.Client(credentials=creds)
 
-# Create Flask app\ napp = Flask(__name__)
+def perform_update(document_id):
+    try:
+        print(f"🔎 Fetching document ID: {document_id}")
 
-# Helper function to perform reference updates
- def perform_update(document_id):
-    add_doc_ref = db.collection('adds').document(document_id)
-    add_doc = add_doc_ref.get()
-    if not add_doc.exists:
-        return None, f"Document '{document_id}' not found.", 404
+        # Fetch the 'adds' document
+        add_doc_ref = db.collection('adds').document(document_id)
+        add_doc = add_doc_ref.get()
 
-    add_data = add_doc.to_dict()
-    # Gather fields to update
-    fields_to_update = {
-        'start': add_data.get('start'),
-        'end': add_data.get('end'),
-        'indexlist': add_data.get('indexlist', [])
-    }
+        if not add_doc.exists:
+            print(f"❌ Document {document_id} not found.")
+            return
 
-    # Update each reference list
-    for key in ['shopref', 'serviceref', 'serviceoffer', 'offerref']:
-        for ref in add_data.get(key, []):
-            ref.update(fields_to_update)
+        print(f"✅ Document {document_id} fetched successfully.")
 
-    return True, f"All referenced documents for '{document_id}' updated successfully!", 200
+        add_data = add_doc.to_dict()
 
-# Define API endpoint
+        # Fields to update
+        start = add_data.get('start')
+        end = add_data.get('end')
+        indexlist = add_data.get('indexlist', [])
+
+        print(f"📝 Fields to update - start: {start}, end: {end}, indexlist: {indexlist}")
+
+        fields_to_update = {
+            'start': start,
+            'end': end,
+            'indexlist': indexlist
+        }
+
+        # Helper function to update reference documents
+        def update_documents(ref_list, ref_name):
+            print(f"🔧 Updating {len(ref_list)} documents in {ref_name}...")
+            for ref in ref_list:
+                ref.update(fields_to_update)
+                print(f"  ➔ Updated {ref.id}")
+
+        # Update all references
+        shop_refs = add_data.get('shopref', [])
+        service_refs = add_data.get('serviceref', [])
+        serviceoffer_refs = add_data.get('serviceoffer', [])
+        offer_refs = add_data.get('offerref', [])
+
+        # Check if references exist before updating
+        if shop_refs:
+            update_documents(shop_refs, "shopref")
+        if service_refs:
+            update_documents(service_refs, "serviceref")
+        if serviceoffer_refs:
+            update_documents(serviceoffer_refs, "serviceoffer")
+        if offer_refs:
+            update_documents(offer_refs, "offerref")
+
+        print(f"🎉 All referenced documents for {document_id} updated successfully!")
+
+    except Exception as e:
+        print("❗ Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+
+# API endpoint to update references
 @app.route('/update_references', methods=['POST'])
-def update_references_route():
-    data = request.get_json()
-    if not data or 'document_id' not in data:
-        return jsonify({'status': 'error', 'message': "Missing 'document_id' in request."}), 400
+def update_references():
+    try:
+        # Get the document_id from the request payload
+        data = request.get_json()
+        document_id = data.get('document_id')
 
-    document_id = data['document_id']
-    success, message, status_code = perform_update(document_id)
-    status = 'success' if success else 'error'
-    return jsonify({'status': status, 'message': message}), status_code
+        if not document_id:
+            return jsonify({"error": "document_id is required"}), 400
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        # Call the function to perform the update
+        perform_update(document_id)
+
+        return jsonify({"message": f"References for document {document_id} updated successfully!"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Run the Flask app
+if __name__ == "__main__":
+    app.run(debug=True)
