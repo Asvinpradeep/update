@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, firestore
-import json
 
 app = Flask(__name__)
 
 # Firebase credentials as a dictionary (replace with your actual credentials)
-firebase_credentials ={
+firebase_credentials = {
   "type": "service_account",
   "project_id": "lumethrv",
   "private_key_id": "4da8484822f4aab75eb8df8aa36eeed620423773",
@@ -20,6 +19,7 @@ firebase_credentials ={
   "universe_domain": "googleapis.com"
 }
 
+
 # Initialize Firebase Admin with direct credentials
 cred = credentials.Certificate(firebase_credentials)
 firebase_admin.initialize_app(cred)
@@ -30,6 +30,7 @@ def update_documents():
     try:
         data = request.get_json()
 
+        # Extract document references and fields to update
         shop_refs = data.get('shopRefs', [])
         service_refs = data.get('serviceRefs', [])
         service_offer_refs = data.get('serviceOfferRefs', [])
@@ -42,9 +43,11 @@ def update_documents():
         all_refs = shop_refs + service_refs + service_offer_refs + offer_refs
         updated_docs = []
 
+        # Iterate over each document reference
         for ref_path in all_refs:
             doc_ref = db.document(ref_path)
-            doc_ref.update(update_fields)
+            # Use set() with merge=True to update or create fields
+            doc_ref.set(update_fields, merge=True)
             updated_docs.append(ref_path)
 
         return jsonify({'message': 'Documents updated successfully', 'updatedDocs': updated_docs}), 200
