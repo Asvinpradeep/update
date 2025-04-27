@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, firestore
-from google.auth.transport.requests import Request
 import google.auth
+from google.auth.transport.requests import Request
 
 app = Flask(__name__)
 
@@ -21,11 +21,11 @@ service_account_info = {
   "universe_domain": "googleapis.com"
 }
 
-
 # Function to authenticate using JWT token
 def authenticate_via_jwt():
-    credentials, project = google.auth.load_credentials_from_dict(service_account_info)
-    credentials.refresh(Request())  # Refresh the credentials
+    credentials, project = google.auth.load_credentials_from_dict(service_account_info, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    if credentials and credentials.expired and credentials.refresh_token:
+        credentials.refresh(Request())  # Refresh the credentials if expired
     return credentials
 
 # Authenticate Firebase Admin SDK using JWT credentials
