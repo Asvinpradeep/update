@@ -1,17 +1,13 @@
 from flask import Flask, request, jsonify
-import firebase_admin
-from firebase_admin import credentials, firestore
-import google.auth
-from google.auth.transport.requests import Request
+from google.cloud import firestore
+from google.oauth2 import service_account
 
-app = Flask(__name__)
-
-# Firebase credentials (this should be stored securely, not directly in the code)
+# Paste your service account JSON here (or load from a secure location)
 service_account_info = {
   "type": "service_account",
   "project_id": "lumethrv",
-  "private_key_id": "4da8484822f4aab75eb8df8aa36eeed620423773",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCMjHPmoIJLpnGu\nN5VOSHUF7ahF2HObJtf/pVlKoMNScFSQrDv4u0Rs45RXI2w2r4eW41KCpL0neJAz\no8A+uZ6T2HkCUvDZEzXGCQz8CJDPkKf6kPhQJi27sQcJbhKjFY3fu2krXqOKs9P8\nXPCJDSikv9kRuzjiGGT9BYtdk0imQo5FvMGcXeionbz4WtNH61cEDRrHpTck//cu\n6xF7RdX2+9ASWvL94OvMON0+5ZuDIzg3/TQF/pSjDf3K1PFguRUERAuPGo089XpX\nV7E4K1LEAVQnXgI1C/7ty9O4dfv+zZ1KL8wp91Bodu80d9ZaspmntZ62BZeOg2/6\npDY/fXkdAgMBAAECggEAPzacmknu0F+YGadeO8tS9suhN2jW9h1OYOjZdDtCHj3v\nivIsNv7jE6Z3/YktDpt7/F1ZqvC1Mp+DG/a2bH/H1u8x3d23/aoqMVu4v1KK7xA8\nvPGe/U1unFBOvesH7tmu6cW804jJPYUL/yE9/iYw9Yhj9Rmjx+z43uQzfm7T6hKy\nfU+qnkVQWDNR1eX3HYF3otaPzRjbGxhgcoBp1gHSeS5N13TjLD+KZpoxb9q0UBkK\nesOY8kcfVj7NyeB4Zj1ITRhyQC38esxuOtoXwZxQoFfansN6BKU7JW4Ft4s1HmH3\n0eQ8mPEUQLeuB/rMylnQ8OGiA9Pb+ILaPnt8vFPxcQKBgQDDkh/KLgviD+eZ3No1\ncepBym/S0sjfc3tzo7uuTIrqPQK0Yd5h37eld+IO4fALA61oWS2pVxAkRUj0lga7\nmqUJVorJG/+qq67+oKfJELLgyhLVEQCvLqcoDTwsFewIzfpVpwL+O/xb7tnBRIEG\nRsNHH56G6irac1cM3E6zTFrXMwKBgQC3+gM9+Kf8IGjJteOm33u0pRTMhxxmzkl1\nqEo0MV+Vt/OO6DiF2ia3N1xUVof1OEz4Tz8YRI55ATQQq2OA273VUwuiU7KorwFF\noSU8gXtGRHrSINZ9uDNNP5mZELEYqVjEWw3UT8JaWiy8jG0qbUxunOl0OiNY6ZMf\n4n8aLNUubwKBgQCLktnFPR+V8qvjj07cHbSFx6gO2ggqEQzl9tCXEGGD0o7/lWlU\niIlUOj7HSFA8TB+R/TMtS8llWV070WZ0tWVbSLw70xOgBm8ZoiacxKIk85KFJWFL\npQv+9ZMgE3Ukw3wJbOwh7UWphsk5uV4r0IzFUbedqblztiVGNGSmabPbKQKBgQCz\nfZ0aIfWqOuhhGy7eiJ0FUiWnoY3pEwuCWc0DfMQXqt9ZpmA23u30xHM06TM94E7f\n11jkUUZ68dydAslSV5CuhpYMKgJdJlhkWWKd1Gmz1W3KgjUhdMvAavNs7WcKe3Xa\nJEeqwqIISn/o+EwtH3N5W2c8eNgxj7h1XCHLJMBbywKBgErhOp/ffblcYV4Dh240\nqyt7nbxxH6UJV8pclis4g5bBQkcSQkjsskcP8DIqXm9BqPJ6cIqggrfR3sM5nDrl\nm6Q7HF0fqaozTZNPvx9nFV719w32fgoq6T4YE2o/31vGQKl9mA4YOLNDmRqCniDr\ngeSaO/0HWTwLtEq8PghLmjj7\n-----END PRIVATE KEY-----\n",
+  "private_key_id": "68dcf4f342038ec3591d999c7cc95c80b06266de",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDBW9oibSBPRBE4\nr5NlkxcOKJG/9tcrXZ6bo4R+f5WbmJUoC+Q8Im9Jl8Wra1fS/DGIqrVqy+hcO5O/\nSB+BkQtgPqUH4V5KZe2XhjBO4heaOEMZaO45IDpl6rS1KRb+NKg1uD2y7TdFSApq\nH/CzXYkaGC4vhOjxqHQHaFBPJdj29ogh0SYr7LZBL1+FVtS9YJGdZDWsNfvJHm+P\ni3+gYo0rh2cad71kDfmv3ewpZ7CpdeUOep+SR+RKKjJvABCymoOZcQLzO9gpDOW8\nBLDZdpJ99jWmVBv7LReIHEVwD8bkzd/u2sztT5BHXunjree2UpmcZeVULIdsmEqx\nF6K1DzjXAgMBAAECggEAAqcC6AP9NHknj1KBQBxzbYNK9IorS3H+Uf49PAr9/2Np\ncGIxYE3MnwLQ+FgBnWhOOaS11mAzsMg0b6RKolleAZT6aJBD3dtmFfUGRp69WiU5\nbmjNE8WIZ4t/rRiCMzx/rjT3y7OLVYz2b5w+jgdTcSMxxv8Yvu/jn5Jjv6IyRrj2\n357n0ch72Rtn43u7A60nK9WWzhH2KLXw1SuiEpc8pqZlzPAzPdCoDe+04UFbFH5E\napbJCWwP3Km9cRS1oO69BY5VAuR8pXEovB5TloMD3ou3Pu9uHQlZapYp1oOx9Ate\nBClvGzUJuv70LSsDkAeJcScSeDqFtBTbbYTpzvFQ+QKBgQDDtydQ2gDM0CvyAyzx\nIYP3T4umh5a+TTwPPVk9F4wDUGvQbsnhfnjRUJRiVRkrd+DHMXZqmByvxHFHk6Hj\nhXAxGnuj3LmmrHtLAya8v+/obp9knd7vvftmI0cLB2A9IjdNP9bCsNvfDzMi2tUU\nskAOuaPZ3jR9x8dewdwXUPZjqwKBgQD86t5jgRsAn6RRoipRIDpVHF2lKqsihmRb\ncs+p1sY9AK6ufq/NFbx96pp2efhtUReQF+eNepFaeU5jE7Ucejsi22evCrEGggje\naopRQzbSnvoLOT58H7tjYz54Ak4ESAy7QPhJ1wk1n6EMxCpXs73VlN8yrBNk4U9+\nw5EqCzdThQKBgAyEBuiduFVgrp7AYzxcV1MWbCjPHO24hLG4y58jhVmk5/AhVZms\n+87u5z5OkNh9xwsV96ujZJo85r2cDEs/ekg5mFSHRfwJpazLW8vQPmhPwrOtgNc2\nAACtGtryss3WBVFUVsiGhNkD4NJGyj+TkpMefgLtuc+dWfuOTCPVkpwXAoGAD3K9\nILDLGG+n1sCj+w6P4ZD4+1Su3U3+JUPPAV24ABPhl5DvZgR03fANfT0X+n1ghhGf\nuBmLdU5BhnW2s0WYBRoHrD5n77DTn9o8FpiXaagCN9tIQMajaH+wWh4x67sG5A0k\n3UXAL0FP0frNZ0v4RWpxc6PlD11fwKtrW3kR6Q0CgYB/4fX1eSXWo2WCa22518iO\nxSdMJLbCyTilqxAiWc/6W/n06/OJfPMLQEq/R/xcqhm5SSP3xalP9MFn/QChSBxF\nwdwLwphGKJ2TuHXPx2H2lRkGMds+1wNr/HUhpQ2YBvozvHrBKxwaJ0epnoEtr4Ya\nPYWTWa6y++jxUZAW3PHmLA==\n-----END PRIVATE KEY-----\n",
   "client_email": "firebase-adminsdk-mmudl@lumethrv.iam.gserviceaccount.com",
   "client_id": "118272570511746214100",
   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -21,49 +17,45 @@ service_account_info = {
   "universe_domain": "googleapis.com"
 }
 
-# Function to authenticate using JWT token
-def authenticate_via_jwt():
-    credentials, project = google.auth.load_credentials_from_dict(service_account_info, scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    if credentials and credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())  # Refresh the credentials if expired
-    return credentials
-
-# Authenticate Firebase Admin SDK using JWT credentials
-credentials = authenticate_via_jwt()
-firebase_admin.initialize_app(credentials)
-
 # Initialize Firestore client
-db = firestore.client()
+creds = service_account.Credentials.from_service_account_info(service_account_info)
+db = firestore.Client(credentials=creds)
 
-@app.route('/update_documents', methods=['POST'])
-def update_documents():
-    try:
-        data = request.get_json()
+# Create Flask app\ napp = Flask(__name__)
 
-        # Extract document references and fields to update
-        shop_refs = data.get('shopRefs', [])
-        service_refs = data.get('serviceRefs', [])
-        service_offer_refs = data.get('serviceOfferRefs', [])
-        offer_refs = data.get('offerRefs', [])
-        update_fields = data.get('updateFields', {})
+# Helper function to perform reference updates
+ def perform_update(document_id):
+    add_doc_ref = db.collection('adds').document(document_id)
+    add_doc = add_doc_ref.get()
+    if not add_doc.exists:
+        return None, f"Document '{document_id}' not found.", 404
 
-        if not update_fields or not isinstance(update_fields, dict):
-            return jsonify({'error': 'updateFields must be a dictionary with fields to update'}), 400
+    add_data = add_doc.to_dict()
+    # Gather fields to update
+    fields_to_update = {
+        'start': add_data.get('start'),
+        'end': add_data.get('end'),
+        'indexlist': add_data.get('indexlist', [])
+    }
 
-        all_refs = shop_refs + service_refs + service_offer_refs + offer_refs
-        updated_docs = []
+    # Update each reference list
+    for key in ['shopref', 'serviceref', 'serviceoffer', 'offerref']:
+        for ref in add_data.get(key, []):
+            ref.update(fields_to_update)
 
-        # Iterate over each document reference
-        for ref_path in all_refs:
-            doc_ref = db.document(ref_path)
-            # Use set() with merge=True to update or create fields
-            doc_ref.set(update_fields, merge=True)
-            updated_docs.append(ref_path)
+    return True, f"All referenced documents for '{document_id}' updated successfully!", 200
 
-        return jsonify({'message': 'Documents updated successfully', 'updatedDocs': updated_docs}), 200
+# Define API endpoint
+@app.route('/update_references', methods=['POST'])
+def update_references_route():
+    data = request.get_json()
+    if not data or 'document_id' not in data:
+        return jsonify({'status': 'error', 'message': "Missing 'document_id' in request."}), 400
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    document_id = data['document_id']
+    success, message, status_code = perform_update(document_id)
+    status = 'success' if success else 'error'
+    return jsonify({'status': status, 'message': message}), status_code
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
